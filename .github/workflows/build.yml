@@ -11,28 +11,28 @@ on:
 
 jobs:
   build:
-    name: 构建测试
+    name: Build Test
     runs-on: windows-latest
     
     steps:
-      - name: 检出代码
+      - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: 设置 .NET
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
       
-      - name: 恢复依赖
+      - name: Restore dependencies
         run: dotnet restore
       
-      - name: 构建项目
+      - name: Build project
         run: dotnet build -c Release
       
-      - name: 发布项目
+      - name: Publish project
         run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
       
-      - name: 上传构建产物（仅供测试）
+      - name: Upload build artifact (for testing)
         uses: actions/upload-artifact@v4
         with:
           name: AudioDeviceSwitcher-build-${{ github.sha }}

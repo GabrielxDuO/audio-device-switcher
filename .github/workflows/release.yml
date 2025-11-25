@@ -7,25 +7,25 @@ on:
 
 jobs:
   build:
-    name: 构建应用
+    name: Build Application
     runs-on: windows-latest
     
     steps:
-      - name: 检出代码
+      - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: 设置 .NET
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
       
-      - name: 恢复依赖
+      - name: Restore dependencies
         run: dotnet restore
       
-      - name: 构建项目
+      - name: Build project
         run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
       
-      - name: 上传构建产物
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: AudioDeviceSwitcher
@@ -33,34 +33,34 @@ jobs:
           retention-days: 1
 
   release:
-    name: 创建发布
+    name: Create Release
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     
     steps:
-      - name: 检出代码
+      - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: 下载构建产物
+      - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: AudioDeviceSwitcher
           path: ./release
       
-      - name: 提取版本号
+      - name: Extract version
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
-      - name: 提取更新日志
+      - name: Extract changelog
         id: changelog
         run: |
-          # 从 CHANGELOG.md 提取当前版本的更新内容
+          # Extract changelog for current version from CHANGELOG.md
           VERSION="${{ steps.version.outputs.VERSION }}"
           echo "Extracting changelog for version $VERSION"
           
-          # 提取当前版本的更新日志（从 [VERSION] 到下一个 [VERSION] 或文件末尾）
+          # Extract changelog from [VERSION] to next [VERSION] or end of file
           CHANGELOG=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$ d' | tail -n +2)
           
           if [ -z "$CHANGELOG" ]; then
@@ -68,10 +68,10 @@ jobs:
             CHANGELOG="Release version $VERSION"
           fi
           
-          # 保存到文件以避免多行问题
+          # Save to file to avoid multiline issues
           echo "$CHANGELOG" > changelog.txt
       
-      - name: 创建 GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           name: Release v${{ steps.version.outputs.VERSION }}
@@ -80,4 +80,4 @@ jobs:
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
