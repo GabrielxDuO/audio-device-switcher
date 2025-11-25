@@ -1,0 +1,27 @@
+# 构建产物
+bin/
+obj/
+
+# 打包文件
+*.zip
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vs/
+
+# 临时文件
+*.tmp
+*.temp
+
+# C# 特定
+*.user
+*.suo
+*.cache

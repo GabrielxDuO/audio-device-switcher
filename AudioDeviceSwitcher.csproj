@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>AudioDeviceSwitcher</AssemblyName>
+    <Version>1.2.0</Version>
+    <Authors>GabrielxD</Authors>
+    <Description>Windows Audio Device Switcher</Description>
+    <Copyright>Copyright © 2025 GabrielxD</Copyright>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AudioSwitcher.AudioApi" Version="4.0.0-alpha5" />
+    <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="4.0.0-alpha5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 嵌入图标文件到 exe 中 -->
+    <EmbeddedResource Include="icon.ico" />
+    <EmbeddedResource Include="icon-dark.ico" />
+  </ItemGroup>
+
+</Project>
+

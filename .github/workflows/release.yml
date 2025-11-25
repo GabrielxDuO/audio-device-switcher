@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送 v* 标签时触发 (例如 v1.2.0)
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+      
+    - name: Get version from tag
+      id: get_version
+      shell: pwsh
+      run: |
+        $version = "${{ github.ref_name }}" -replace '^v', ''
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          bin/Release/net8.0-windows/win-x64/publish/AudioDeviceSwitcher.exe
+        body: |
+          ## AudioDeviceSwitcher ${{ steps.get_version.outputs.VERSION }}
+          
+          ### 下载
+          - **AudioDeviceSwitcher.exe** - 便携版单文件 (需要 .NET 8.0 Runtime)
+          
+          ### 系统要求
+          - Windows 10/11 (64-bit)
+          - [.NET 8.0 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+          
+          ### 使用方法
+          1. 下载 `AudioDeviceSwitcher.exe`
+          2. 双击运行
+          3. 程序会出现在系统托盘
+          4. 左键或右键点击托盘图标打开菜单
+          
+          ### 特性
+          - 🎵 快速切换播放/录制设备
+          - 💬 独立切换通信设备
+          - 🌓 暗黑模式菜单（实时响应系统主题切换）
+          - 📱 高 DPI 支持
+          - 🎨 自定义图标（已嵌入）
+          - 🔒 单实例运行
+          - 🚀 开机自启动
+          - ⚡ 极致轻量：仅 343 KB
+          
+          ---
+          
+          查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) 了解完整更新日志。
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
