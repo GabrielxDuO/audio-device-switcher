@@ -3,73 +3,81 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'  # 当推送 v* 标签时触发 (例如 v1.2.0)
-
-permissions:
-  contents: write
-  actions: write
+      - 'v*.*.*'
 
 jobs:
   build:
+    name: 构建应用
     runs-on: windows-latest
     
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: 检出代码
+        uses: actions/checkout@v4
       
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-        
-    - name: Restore dependencies
-      run: dotnet restore
+      - name: 设置 .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
       
-    - name: Build
-      run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+      - name: 恢复依赖
+        run: dotnet restore
       
-    - name: Get version from tag
-      id: get_version
-      shell: pwsh
-      run: |
-        $version = "${{ github.ref_name }}" -replace '^v', ''
-        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-        
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          bin/Release/net8.0-windows/win-x64/publish/AudioDeviceSwitcher.exe
-        token: ${{ secrets.GH_PAT }}
-        body: |
-          ## AudioDeviceSwitcher ${{ steps.get_version.outputs.VERSION }}
-          
-          ### 下载
-          - **AudioDeviceSwitcher.exe** - 便携版单文件 (需要 .NET 8.0 Runtime)
-          
-          ### 系统要求
-          - Windows 10/11 (64-bit)
-          - [.NET 8.0 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
-          
-          ### 使用方法
-          1. 下载 `AudioDeviceSwitcher.exe`
-          2. 双击运行
-          3. 程序会出现在系统托盘
-          4. 左键或右键点击托盘图标打开菜单
-          
-          ### 特性
-          - 🎵 快速切换播放/录制设备
-          - 💬 独立切换通信设备
-          - 🌓 暗黑模式菜单（实时响应系统主题切换）
-          - 📱 高 DPI 支持
-          - 🎨 自定义图标（已嵌入）
-          - 🔒 单实例运行
-          - 🚀 开机自启动
-          - ⚡ 极致轻量：仅 300 KB
-          
-          ---
-          
-          查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) 了解完整更新日志。
-        draft: false
-        prerelease: false
+      - name: 构建项目
+        run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
+      
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioDeviceSwitcher
+          path: ./publish/AudioDeviceSwitcher.exe
+          retention-days: 1
 
+  release:
+    name: 创建发布
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: AudioDeviceSwitcher
+          path: ./release
+      
+      - name: 提取版本号
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: 提取更新日志
+        id: changelog
+        run: |
+          # 从 CHANGELOG.md 提取当前版本的更新内容
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "Extracting changelog for version $VERSION"
+          
+          # 提取当前版本的更新日志（从 [VERSION] 到下一个 [VERSION] 或文件末尾）
+          CHANGELOG=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$ d' | tail -n +2)
+          
+          if [ -z "$CHANGELOG" ]; then
+            echo "Warning: No changelog found for version $VERSION, using default message"
+            CHANGELOG="Release version $VERSION"
+          fi
+          
+          # 保存到文件以避免多行问题
+          echo "$CHANGELOG" > changelog.txt
+      
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.version.outputs.VERSION }}
+          body_path: changelog.txt
+          files: ./release/AudioDeviceSwitcher.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

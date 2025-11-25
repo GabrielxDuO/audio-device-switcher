@@ -2,45 +2,39 @@ name: Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
+    name: 构建测试
     runs-on: windows-latest
     
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: 检出代码
+        uses: actions/checkout@v4
       
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-        
-    - name: Restore dependencies
-      run: dotnet restore
+      - name: 设置 .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
       
-    - name: Build
-      run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+      - name: 恢复依赖
+        run: dotnet restore
       
-    - name: Test executable exists
-      run: |
-        if (Test-Path "bin/Release/net8.0-windows/win-x64/publish/AudioDeviceSwitcher.exe") {
-          Write-Host "✓ Build successful: AudioDeviceSwitcher.exe created"
-          $size = (Get-Item "bin/Release/net8.0-windows/win-x64/publish/AudioDeviceSwitcher.exe").Length
-          Write-Host "File size: $([math]::Round($size/1KB, 1)) KB"
-        } else {
-          Write-Error "✗ Build failed: AudioDeviceSwitcher.exe not found"
-          exit 1
-        }
-      shell: pwsh
+      - name: 构建项目
+        run: dotnet build -c Release
       
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: AudioDeviceSwitcher
-        path: bin/Release/net8.0-windows/win-x64/publish/AudioDeviceSwitcher.exe
-        retention-days: 7
-
+      - name: 发布项目
+        run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
+      
+      - name: 上传构建产物（仅供测试）
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioDeviceSwitcher-build-${{ github.sha }}
+          path: ./publish/AudioDeviceSwitcher.exe
+          retention-days: 7
