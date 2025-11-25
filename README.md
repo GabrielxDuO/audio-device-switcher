@@ -2,11 +2,11 @@
 
 Windows 音频设备快速切换工具
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
 [![Build](https://github.com/GabrielxDuO/audio-device-switcher/workflows/Build/badge.svg)](https://github.com/GabrielxDuO/audio-device-switcher/actions)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](https://github.com/GabrielxDuO/audio-device-switcher)
 [![Framework](https://img.shields.io/badge/.NET-8.0-purple)](https://dotnet.microsoft.com/download/dotnet/8.0)
-[![Size](https://img.shields.io/badge/size-343%20KB-green)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
+[![Size](https://img.shields.io/badge/size-300%20KB-green)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## ✨ 特性
@@ -16,7 +16,7 @@ Windows 音频设备快速切换工具
 - 🌓 暗黑模式菜单（实时响应系统主题切换）
 - 📱 高 DPI 支持
 - 🚀 开机自启动
-- ⚡ 极致轻量：仅 343 KB
+- ⚡ 极致轻量：仅约 300 KB
 - 💾 低内存占用：~15 MB
 - 🔋 启动极快：< 0.3 秒
 
@@ -55,7 +55,7 @@ Windows 音频设备快速切换工具
 
 | 指标 | 数值 |
 |------|------|
-| 文件大小 | 343 KB |
+| 文件大小 | 300 KB |
 | 内存占用 | ~15 MB |
 | 启动时间 | < 0.3 秒 |
 | CPU 占用 | 接近 0% |
@@ -128,12 +128,3 @@ git push origin v1.2.0
 ## 📄 许可证
 
 MIT License
-
-## 👨‍💻 作者
-
-GabrielxD
-
----
-
-**从 76 MB (Electron) 到 343 KB (C#) - 体积减少 99.5%！** 🎉
-
