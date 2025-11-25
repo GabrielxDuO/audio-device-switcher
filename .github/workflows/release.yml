@@ -40,7 +40,7 @@ jobs:
       with:
         files: |
           bin/Release/net8.0-windows/win-x64/publish/AudioDeviceSwitcher.exe
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GH_PAT }}
         body: |
           ## AudioDeviceSwitcher ${{ steps.get_version.outputs.VERSION }}
           
