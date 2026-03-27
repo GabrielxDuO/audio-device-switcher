@@ -1,30 +1,79 @@
 @echo off
-chcp 65001 > nul
+setlocal
+
 echo ==========================================
-echo AudioDeviceSwitcher - 构建脚本
+echo  AudioDeviceSwitcher - Build
 echo ==========================================
 echo.
 
-echo [1/3] 清理旧文件...
-if exist bin rd /s /q bin
-if exist obj rd /s /q obj
-
-echo [2/3] 编译项目...
-dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
-
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo 构建失败！
-    pause
-    exit /b 1
+:: Find vswhere.exe
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" (
+    echo [ERROR] vswhere.exe not found. Install Visual Studio 2019/2022.
+    pause & exit /b 1
 )
 
-echo [3/3] 完成！
+:: Find VS installation with C++ tools
+for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+    set "VS_PATH=%%i"
+)
+if "%VS_PATH%"=="" (
+    echo [ERROR] No Visual Studio with C++ tools found.
+    echo         Open Visual Studio Installer and add "Desktop development with C++".
+    pause & exit /b 1
+)
+
+set "VCVARS=%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat"
+echo [1/5] MSVC: %VCVARS%
+call "%VCVARS%" x64 > nul 2>&1
+
+:: Find cmake
+set "CMAKE=cmake"
+where cmake > nul 2>&1
+if errorlevel 1 (
+    if exist "C:\Program Files\CMake\bin\cmake.exe" (
+        set "CMAKE=C:\Program Files\CMake\bin\cmake.exe"
+    ) else (
+        echo [ERROR] cmake not found. Run: winget install --id Kitware.CMake
+        pause & exit /b 1
+    )
+)
+echo [2/5] cmake: %CMAKE%
+
+:: Find ninja
+where ninja > nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] ninja not found. Run: winget install --id Ninja-build.Ninja
+    pause & exit /b 1
+)
+
+:: Clean
+echo [3/5] Cleaning old build...
+if exist build rd /s /q build
+
+:: Configure
+echo [4/5] CMake configure (Ninja + MSVC Release)...
+"%CMAKE%" -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
+if errorlevel 1 (
+    echo [ERROR] CMake configure failed.
+    pause & exit /b 1
+)
+
+:: Build
+echo [5/5] Building...
+"%CMAKE%" --build build
+if errorlevel 1 (
+    echo [ERROR] Build failed.
+    pause & exit /b 1
+)
+
 echo.
-echo 输出文件: bin\Release\net8.0-windows\win-x64\publish\AudioDeviceSwitcher.exe
-echo.
-powershell -NoProfile -Command "$file = Get-Item 'bin\Release\net8.0-windows\win-x64\publish\AudioDeviceSwitcher.exe'; Write-Host '文件名:' $file.Name; Write-Host '大小:' $file.Length '字节 (' ([math]::Round($file.Length/1KB, 1)) ' KB)'"
+echo Build complete!
+if exist "build\AudioDeviceSwitcher.exe" (
+    powershell -NoProfile -Command "$f=Get-Item 'build\AudioDeviceSwitcher.exe'; Write-Host 'Output:' $f.FullName; Write-Host 'Size:' $f.Length 'bytes (' ([math]::Round($f.Length/1KB,1)) 'KB)'"
+)
 echo.
 echo ==========================================
 pause
-
+endlocal

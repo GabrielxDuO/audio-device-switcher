@@ -1,130 +1,93 @@
 # AudioDeviceSwitcher
 
-Windows 音频设备快速切换工具
+Windows 音频设备快速切换工具（C++ / 纯 Win32 原生重写版）
 
-[![Version](https://img.shields.io/badge/version-1.2.1-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
 [![Build](https://github.com/GabrielxDuO/audio-device-switcher/workflows/Build/badge.svg)](https://github.com/GabrielxDuO/audio-device-switcher/actions)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](https://github.com/GabrielxDuO/audio-device-switcher)
-[![Framework](https://img.shields.io/badge/.NET-8.0-purple)](https://dotnet.microsoft.com/download/dotnet/8.0)
-[![Size](https://img.shields.io/badge/size-300%20KB-green)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## ✨ 特性
+## 特性
 
-- 🎵 快速切换播放/录制设备
-- 💬 独立切换通信设备
-- 🌓 暗黑模式菜单（实时响应系统主题切换）
-- 📱 高 DPI 支持
-- 🚀 开机自启动
-- ⚡ 极致轻量：仅约 300 KB
-- 💾 低内存占用：~15 MB
-- 🔋 启动极快：< 0.3 秒
+- 快速切换 播放设备 / 播放通信设备 / 录制设备 / 录制通信设备
+- 开机自启动（可选）
+- 暗色模式图标实时响应系统主题切换
+- **零依赖**：无需任何运行时，直接双击运行
+- 极致轻量：文件大小约 40 KB，内存占用约 2–5 MB
 
-## 🚀 快速开始
+## 快速开始
 
 ### 下载
 
-前往 [Releases](https://github.com/GabrielxDuO/audio-device-switcher/releases) 页面下载最新版本的 `AudioDeviceSwitcher.exe`
-
-### 运行
-
-双击 `AudioDeviceSwitcher.exe` 运行，程序会出现在系统托盘。
+前往 [Releases](https://github.com/GabrielxDuO/audio-device-switcher/releases) 页面下载最新 `AudioDeviceSwitcher.exe`。
 
 ### 使用
 
-- **左键/右键点击托盘图标**：打开菜单
+双击运行，程序出现在系统托盘。
+
+- **左键 / 右键点击托盘图标**：打开菜单
 - **选择设备**：立即切换
 - **开机启动**：勾选菜单中的选项
+- **退出**：点击菜单中的退出
 
-### 从源码构建
+## 系统要求
 
-```bash
+- Windows 10 / 11（64 位）
+- 无需安装任何运行时
+
+## 从源码构建
+
+### 前置条件
+
+- Visual Studio 2022（含 C++ 桌面开发工作负荷）
+- CMake 3.20+
+
+### 构建
+
+```bat
 .\build.bat
 ```
 
-构建产物位于：`bin\Release\net8.0-windows\win-x64\publish\AudioDeviceSwitcher.exe`
+或手动：
 
-## 📋 系统要求
-
-- Windows 10/11 (64-bit)
-- .NET 8.0 Runtime ([下载](https://dotnet.microsoft.com/download/dotnet/8.0))
-
-如果没有安装 .NET Runtime，程序会提示下载安装。
-
-## 📊 性能
-
-| 指标 | 数值 |
-|------|------|
-| 文件大小 | 300 KB |
-| 内存占用 | ~15 MB |
-| 启动时间 | < 0.3 秒 |
-| CPU 占用 | 接近 0% |
-
-## 🎯 功能说明
-
-### 菜单结构
-
-```
-播放设备            ▶
-播放通信设备        ▶
-录制设备            ▶
-录制通信设备        ▶
-────────────────────
-刷新设备列表
-────────────────────
-☑ 开机启动
-────────────────────
-退出
+```bat
+cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
 ```
 
-## 🛠️ 开发
+产物位于 `build\Release\AudioDeviceSwitcher.exe`。
 
-### 技术栈
+## 技术栈
 
-- C# 12
-- .NET 8
-- Windows Forms
-- AudioSwitcher.AudioApi.CoreAudio
+- C++17
+- 纯 Win32 API（无第三方库）
+- `IMMDeviceEnumerator`（公开 API）枚举音频设备
+- `IPolicyConfig`（未公开但稳定的 COM 接口）设置默认设备
+- `Shell_NotifyIcon` 托盘图标
+- MSVC `/MT /O1 /SUBSYSTEM:WINDOWS` 编译，静态链接 CRT
 
-### 项目结构
+## 项目结构
 
 ```
 audio-device-switcher/
-├── .github/
-│   └── workflows/
-│       ├── build.yml          # CI 构建
-│       └── release.yml        # 自动发布
-├── Program.cs                 # 程序入口
-├── TrayApplicationContext.cs  # 主要逻辑
-├── AudioDeviceSwitcher.csproj # 项目配置
-├── app.manifest               # 应用程序清单
-├── icon.ico                   # 亮色模式图标
-├── icon-dark.ico              # 暗色模式图标
-└── build.bat                  # 构建脚本
+├── src/
+│   ├── main.cpp          # WinMain + 消息循环 + WndProc
+│   ├── tray.h/cpp        # Shell_NotifyIcon 封装
+│   ├── audio.h/cpp       # 设备枚举 + IPolicyConfig 切换
+│   ├── startup.h/cpp     # 注册表开机启动
+│   └── PolicyConfig.h    # IPolicyConfig COM 接口声明
+├── res/
+│   ├── resource.h        # 资源 ID 常量
+│   ├── resource.rc       # 嵌入图标 + VERSIONINFO
+│   ├── icon.ico          # 亮色模式图标
+│   └── icon-dark.ico     # 暗色模式图标
+├── .github/workflows/
+│   ├── build.yml         # CI
+│   └── release.yml       # CD
+├── CMakeLists.txt
+└── build.bat
 ```
 
-### CI/CD
-
-项目使用 GitHub Actions 进行持续集成和自动发布：
-
-- **构建工作流** (`build.yml`)：每次推送到 main/master 分支时自动构建
-- **发布工作流** (`release.yml`)：推送版本标签时自动创建 Release
-
-#### 创建新版本
-
-```bash
-# 1. 更新版本号 (AudioDeviceSwitcher.csproj 和 README.md)
-# 2. 提交更改
-git add .
-git commit -m "bump: version 1.2.0"
-
-# 3. 创建并推送标签
-git tag v1.2.0
-git push origin v1.2.0
-
-# GitHub Actions 会自动构建并创建 Release
-```
-
-## 📄 许可证
+## 许可证
 
 MIT License

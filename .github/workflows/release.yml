@@ -5,79 +5,46 @@ on:
     tags:
       - 'v*.*.*'
 
-jobs:
-  build:
-    name: Build Application
-    runs-on: windows-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      
-      - name: Restore dependencies
-        run: dotnet restore
-      
-      - name: Build project
-        run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
-      
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: AudioDeviceSwitcher
-          path: ./publish/AudioDeviceSwitcher.exe
-          retention-days: 1
+permissions:
+  contents: write
 
+jobs:
   release:
-    name: Create Release
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
+    name: Build & Release
+    runs-on: windows-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (x64)
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          name: AudioDeviceSwitcher
-          path: ./release
-      
-      - name: Extract version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-      
-      - name: Extract changelog
-        id: changelog
+          arch: x64
+
+      - name: Configure CMake
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        shell: pwsh
         run: |
-          # Extract changelog for current version from CHANGELOG.md
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          echo "Extracting changelog for version $VERSION"
-          
-          # Extract changelog from [VERSION] to next [VERSION] or end of file
-          CHANGELOG=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$ d' | tail -n +2)
-          
-          if [ -z "$CHANGELOG" ]; then
-            echo "Warning: No changelog found for version $VERSION, using default message"
-            CHANGELOG="Release version $VERSION"
-          fi
-          
-          # Save to file to avoid multiline issues
-          echo "$CHANGELOG" > changelog.txt
-      
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          $content = Get-Content CHANGELOG.md -Raw
+          if ($content -match "(?s)## \[$([regex]::Escape($version))\][^\n]*\n(.+?)(?=\n## \[|\z)") {
+            $notes = $Matches[1].Trim()
+          } else {
+            $notes = "Release ${{ github.ref_name }}"
+          }
+          $notes | Out-File -FilePath release_notes.txt -Encoding utf8NoBOM
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          name: Release v${{ steps.version.outputs.VERSION }}
-          body_path: changelog.txt
-          files: ./release/AudioDeviceSwitcher.exe
+          name: Release ${{ github.ref_name }}
+          body_path: release_notes.txt
+          files: build/AudioDeviceSwitcher.exe
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}

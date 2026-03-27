@@ -2,39 +2,33 @@ name: Build
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build Test
+    name: Build
     runs-on: windows-latest
-    
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC (x64)
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          dotnet-version: '8.0.x'
-      
-      - name: Restore dependencies
-        run: dotnet restore
-      
-      - name: Build project
-        run: dotnet build -c Release
-      
-      - name: Publish project
-        run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
-      
-      - name: Upload build artifact (for testing)
+          arch: x64
+
+      - name: Configure CMake
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AudioDeviceSwitcher-build-${{ github.sha }}
-          path: ./publish/AudioDeviceSwitcher.exe
+          name: AudioDeviceSwitcher-${{ github.sha }}
+          path: build/AudioDeviceSwitcher.exe
           retention-days: 7
