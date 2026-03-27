@@ -1,15 +1,15 @@
 #include <winresrc.h>
-#include "resource.h"
+#include "@CMAKE_CURRENT_SOURCE_DIR@/res/resource.h"
 
 // Embed the application manifest for DPI awareness (PerMonitorV2)
-1 RT_MANIFEST "app.manifest"
+1 RT_MANIFEST "@CMAKE_CURRENT_SOURCE_DIR@/res/app.manifest"
 
-IDI_ICON_LIGHT  ICON  "icon.ico"
-IDI_ICON_DARK   ICON  "icon-dark.ico"
+IDI_ICON_LIGHT  ICON  "@CMAKE_CURRENT_SOURCE_DIR@/res/icon.ico"
+IDI_ICON_DARK   ICON  "@CMAKE_CURRENT_SOURCE_DIR@/res/icon-dark.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,0,0,0
-PRODUCTVERSION  1,0,0,0
+FILEVERSION     @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+PRODUCTVERSION  @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
 FILEFLAGSMASK   0x3fL
 FILEFLAGS       0x0L
 FILEOS          VOS_NT_WINDOWS32
@@ -22,12 +22,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "GabrielxD"
             VALUE "FileDescription",  "Audio Device Switcher"
-            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "FileVersion",      "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@.0"
             VALUE "InternalName",     "AudioDeviceSwitcher"
-            VALUE "LegalCopyright",   "Copyright (c) 2025 GabrielxD"
+            VALUE "LegalCopyright",   "Copyright (c) 2026 GabrielxD"
             VALUE "OriginalFilename", "AudioDeviceSwitcher.exe"
             VALUE "ProductName",      "AudioDeviceSwitcher"
-            VALUE "ProductVersion",   "1.0.0.0"
+            VALUE "ProductVersion",   "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@.0"
         END
     END
     BLOCK "VarFileInfo"

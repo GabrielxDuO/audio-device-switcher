@@ -2,7 +2,7 @@
 
 Windows 音频设备快速切换工具
 
-[![Version](https://img.shields.io/badge/version-2.1.1-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
+[![Version](https://img.shields.io/badge/version-2.1.2-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
 [![Build](https://github.com/GabrielxDuO/audio-device-switcher/workflows/Build/badge.svg)](https://github.com/GabrielxDuO/audio-device-switcher/actions)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](https://github.com/GabrielxDuO/audio-device-switcher)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)

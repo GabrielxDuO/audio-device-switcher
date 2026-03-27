@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(AudioDeviceSwitcher
-    VERSION 2.1.1
+    VERSION 2.1.2
     DESCRIPTION "Windows Audio Device Switcher"
     LANGUAGES CXX RC
 )
@@ -17,8 +17,12 @@ set(SOURCES
     src/startup.cpp
 )
 
+# Generate resource.rc from template, injecting the project version automatically.
+# The output goes to the build directory; icon/manifest paths in the template are absolute.
+configure_file(res/resource.rc.in ${CMAKE_CURRENT_BINARY_DIR}/resource.rc @ONLY)
+
 set(RESOURCES
-    res/resource.rc
+    ${CMAKE_CURRENT_BINARY_DIR}/resource.rc
 )
 
 # WIN32 = /SUBSYSTEM:WINDOWS (no console window)
