@@ -1,6 +1,6 @@
 # AudioDeviceSwitcher
 
-Windows 音频设备快速切换工具（C++ / 纯 Win32 原生重写版）
+Windows 音频设备快速切换工具
 
 [![Version](https://img.shields.io/badge/version-2.1.1-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
 [![Build](https://github.com/GabrielxDuO/audio-device-switcher/workflows/Build/badge.svg)](https://github.com/GabrielxDuO/audio-device-switcher/actions)
@@ -13,7 +13,7 @@ Windows 音频设备快速切换工具（C++ / 纯 Win32 原生重写版）
 - 开机自启动（可选）
 - 暗色模式图标实时响应系统主题切换
 - **零依赖**：无需任何运行时，直接双击运行
-- 极致轻量：文件大小约 40 KB，内存占用约 2–5 MB
+- 极致轻量：文件大小约 40 KB，内存占用约 2~5 MB
 
 ## 快速开始
 
