@@ -92,6 +92,19 @@ static bool IsSystemInDarkMode()
 }
 
 // ---------------------------------------------------------------------------
+// Theme-change helper (called from registry watcher and WM_SETTINGCHANGE)
+// ---------------------------------------------------------------------------
+static void CheckAndUpdateDarkMode()
+{
+    bool newDark = IsSystemInDarkMode();
+    if (newDark != g_isDarkMode) {
+        g_isDarkMode = newDark;
+        TraySetIcon(g_hwnd, g_isDarkMode ? g_hIconDark : g_hIconLight);
+        if (g_flushMenuThemes) g_flushMenuThemes();
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Menu helpers
 // ---------------------------------------------------------------------------
 static void AppendDeviceItems(HMENU hMenu, UINT baseId,
@@ -232,16 +245,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     }
 
     case WM_SETTINGCHANGE:
-        // "ImmersiveColorSet" is broadcast when the system color scheme changes
-        if (lParam && lstrcmpiW(reinterpret_cast<LPCWSTR>(lParam), L"ImmersiveColorSet") == 0) {
-            bool newDark = IsSystemInDarkMode();
-            if (newDark != g_isDarkMode) {
-                g_isDarkMode = newDark;
-                TraySetIcon(hwnd, g_isDarkMode ? g_hIconDark : g_hIconLight);
-                // Flush cached menu theme so the next popup reflects the new color scheme
-                if (g_flushMenuThemes) g_flushMenuThemes();
-            }
-        }
+        if (lParam && lstrcmpiW(reinterpret_cast<LPCWSTR>(lParam), L"ImmersiveColorSet") == 0)
+            CheckAndUpdateDarkMode();
         return 0;
 
     case WM_DESTROY:
@@ -304,13 +309,50 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
 
     TrayInit(g_hwnd, g_isDarkMode ? g_hIconDark : g_hIconLight, kAppTip);
 
-    MSG msg = {};
-    while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+    // Watch the Personalize registry key so the tray icon updates reliably
+    // when the user switches light / dark mode.  WM_SETTINGCHANGE is kept as
+    // a secondary trigger, but it is not always delivered to invisible windows.
+    HKEY   hThemeKey   = nullptr;
+    HANDLE hThemeEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    bool   watchingReg = false;
+
+    if (hThemeEvent &&
+        RegOpenKeyExW(HKEY_CURRENT_USER,
+                      L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                      0, KEY_NOTIFY, &hThemeKey) == ERROR_SUCCESS &&
+        RegNotifyChangeKeyValue(hThemeKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET,
+                                hThemeEvent, TRUE) == ERROR_SUCCESS) {
+        watchingReg = true;
     }
 
+    int exitCode = 0;
+    for (bool quit = false; !quit; ) {
+        DWORD nCount = watchingReg ? 1 : 0;
+        DWORD result = MsgWaitForMultipleObjects(
+            nCount, watchingReg ? &hThemeEvent : nullptr,
+            FALSE, INFINITE, QS_ALLINPUT);
+
+        if (watchingReg && result == WAIT_OBJECT_0) {
+            CheckAndUpdateDarkMode();
+            RegNotifyChangeKeyValue(hThemeKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET,
+                                    hThemeEvent, TRUE);
+        }
+
+        MSG msg;
+        while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) {
+                exitCode = static_cast<int>(msg.wParam);
+                quit = true;
+                break;
+            }
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+
+    if (hThemeKey)   RegCloseKey(hThemeKey);
+    if (hThemeEvent) CloseHandle(hThemeEvent);
     CoUninitialize();
     if (hMutex) { ReleaseMutex(hMutex); CloseHandle(hMutex); }
-    return static_cast<int>(msg.wParam);
+    return exitCode;
 }
