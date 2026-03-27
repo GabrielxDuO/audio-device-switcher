@@ -235,11 +235,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     g_hInst = hInstance;
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
-    // Load icons from embedded resources
+    // Load icons at the DPI-aware tray icon size so they stay crisp on HiDPI displays
+    int iconSize = GetSystemMetrics(SM_CXSMICON);
     g_hIconLight = static_cast<HICON>(LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_ICON_LIGHT),
-                                                 IMAGE_ICON, 0, 0, LR_DEFAULTSIZE));
+                                                 IMAGE_ICON, iconSize, iconSize, LR_DEFAULTCOLOR));
     g_hIconDark  = static_cast<HICON>(LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_ICON_DARK),
-                                                 IMAGE_ICON, 0, 0, LR_DEFAULTSIZE));
+                                                 IMAGE_ICON, iconSize, iconSize, LR_DEFAULTCOLOR));
     if (!g_hIconLight) g_hIconLight = LoadIconW(nullptr, IDI_APPLICATION);
     if (!g_hIconDark)  g_hIconDark  = g_hIconLight;
 

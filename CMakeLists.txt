@@ -54,6 +54,7 @@ if(MSVC)
         /SUBSYSTEM:WINDOWS
         /OPT:REF
         /OPT:ICF
+        /MANIFEST:NO  # manifest is embedded via resource.rc (RT_MANIFEST), avoid duplicate
     )
 endif()
 

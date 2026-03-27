@@ -1,6 +1,9 @@
 #include <winresrc.h>
 #include "resource.h"
 
+// Embed the application manifest for DPI awareness (PerMonitorV2)
+1 RT_MANIFEST "app.manifest"
+
 IDI_ICON_LIGHT  ICON  "icon.ico"
 IDI_ICON_DARK   ICON  "icon-dark.ico"
 
