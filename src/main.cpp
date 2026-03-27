@@ -38,6 +38,7 @@ static HWND      g_hwnd       = nullptr;
 static HICON     g_hIconLight = nullptr;
 static HICON     g_hIconDark  = nullptr;
 static bool      g_isDarkMode = false;
+static UINT      g_wmTaskbarCreated = 0; // registered when Explorer (re)creates the taskbar
 
 // Undocumented UxTheme exports (ordinals stable since Windows 10 1903).
 // Used to opt the process into dark-mode popup menus and flush cached themes
@@ -170,6 +171,14 @@ static void ShowContextMenu(HWND hwnd)
 // ---------------------------------------------------------------------------
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    // TaskbarCreated is a registered message (dynamic ID), can't be a case label.
+    // Explorer broadcasts it to all top-level windows after it restarts, at which
+    // point every tray icon has been destroyed and must be re-added.
+    if (msg == g_wmTaskbarCreated) {
+        TrayInit(hwnd, g_isDarkMode ? g_hIconDark : g_hIconLight, kAppTip);
+        return 0;
+    }
+
     switch (msg) {
     case WM_TRAY:
         switch (LOWORD(lParam)) {
@@ -281,10 +290,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     wc.lpszClassName = kClassName;
     RegisterClassExW(&wc);
 
-    // HWND_MESSAGE: invisible, no taskbar entry
+    // Register TaskbarCreated before creating the window so no broadcast is missed.
+    // Must be done before the window exists; the ID is stable for the process lifetime.
+    g_wmTaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+
+    // Regular invisible top-level window (NOT HWND_MESSAGE): HWND_MESSAGE windows
+    // are excluded from HWND_BROADCAST, so they never receive TaskbarCreated.
+    // No WS_VISIBLE / WS_CAPTION / WS_EX_APPWINDOW = invisible, no taskbar entry,
+    // no Alt+Tab entry.
     g_hwnd = CreateWindowExW(0, kClassName, nullptr, 0,
                               0, 0, 0, 0,
-                              HWND_MESSAGE, nullptr, hInstance, nullptr);
+                              nullptr, nullptr, hInstance, nullptr);
 
     TrayInit(g_hwnd, g_isDarkMode ? g_hIconDark : g_hIconLight, kAppTip);
 
