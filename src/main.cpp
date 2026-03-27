@@ -39,6 +39,30 @@ static HICON     g_hIconLight = nullptr;
 static HICON     g_hIconDark  = nullptr;
 static bool      g_isDarkMode = false;
 
+// Undocumented UxTheme exports (ordinals stable since Windows 10 1903).
+// Used to opt the process into dark-mode popup menus and flush cached themes
+// when the user switches color scheme at runtime. Loaded dynamically so the
+// app continues to work on older systems where they don't exist.
+using FnSetPreferredAppMode = int  (WINAPI*)(int);  // ordinal 135
+using FnFlushMenuThemes     = void (WINAPI*)();     // ordinal 136
+static FnFlushMenuThemes g_flushMenuThemes = nullptr;
+
+static void InitDarkModeMenuSupport()
+{
+    HMODULE hUx = GetModuleHandleW(L"uxtheme.dll");
+    if (!hUx) hUx = LoadLibraryW(L"uxtheme.dll");
+    if (!hUx) return;
+
+    auto setMode = reinterpret_cast<FnSetPreferredAppMode>(
+        GetProcAddress(hUx, MAKEINTRESOURCEA(135)));
+    g_flushMenuThemes = reinterpret_cast<FnFlushMenuThemes>(
+        GetProcAddress(hUx, MAKEINTRESOURCEA(136)));
+
+    // AllowDark (1): menus follow the system color scheme automatically
+    if (setMode) setMode(1);
+    if (g_flushMenuThemes) g_flushMenuThemes();
+}
+
 // Cached device lists rebuilt each time the menu opens
 struct DevEntry {
     std::wstring id;
@@ -205,6 +229,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (newDark != g_isDarkMode) {
                 g_isDarkMode = newDark;
                 TraySetIcon(hwnd, g_isDarkMode ? g_hIconDark : g_hIconLight);
+                // Flush cached menu theme so the next popup reflects the new color scheme
+                if (g_flushMenuThemes) g_flushMenuThemes();
             }
         }
         return 0;
@@ -234,6 +260,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
 
     g_hInst = hInstance;
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
+    InitDarkModeMenuSupport();
 
     // Load icons at the DPI-aware tray icon size so they stay crisp on HiDPI displays
     int iconSize = GetSystemMetrics(SM_CXSMICON);
