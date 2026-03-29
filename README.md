@@ -2,7 +2,7 @@
 
 Windows 音频设备快速切换工具
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
 [![Build](https://github.com/GabrielxDuO/audio-device-switcher/workflows/Build/badge.svg)](https://github.com/GabrielxDuO/audio-device-switcher/actions)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](https://github.com/GabrielxDuO/audio-device-switcher)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -15,6 +15,7 @@ Windows 音频设备快速切换工具
 - 一键打开系统声音设置面板
 - 开机自启动（可选）
 - 暗色模式图标实时响应系统主题切换
+- **i18nz 支持**：自动跟随系统语言，目前支持简体中文、English、日本語
 - **零依赖**：无需任何运行时，直接双击运行
 - 极致轻量：文件大小约 40 KB，内存占用约 2~5 MB
 
@@ -79,6 +80,7 @@ audio-device-switcher/
 │   ├── tray.h/cpp        # Shell_NotifyIcon 封装
 │   ├── audio.h/cpp       # 设备枚举 + IPolicyConfig 切换
 │   ├── startup.h/cpp     # 注册表开机启动
+│   ├── i18n.h            # 多语言字符串表
 │   └── PolicyConfig.h    # IPolicyConfig COM 接口声明
 ├── res/
 │   ├── resource.h        # 资源 ID 常量

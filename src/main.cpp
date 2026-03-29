@@ -11,6 +11,7 @@
 #include "tray.h"
 #include "audio.h"
 #include "startup.h"
+#include "i18n.h"
 
 // ---------------------------------------------------------------------------
 // Menu command IDs
@@ -167,16 +168,14 @@ static void UpdateTrayTip()
     std::wstring capCon     = GetDefaultDeviceName(eCapture, eConsole);
     std::wstring capComm    = GetDefaultDeviceName(eCapture, eCommunications);
 
-    if (renderCon.empty())  renderCon  = L"无";
-    if (renderComm.empty()) renderComm = L"无";
-    if (capCon.empty())     capCon     = L"无";
-    if (capComm.empty())    capComm    = L"无";
+    const auto& s = GetStrings();
+    if (renderCon.empty())  renderCon  = s.none;
+    if (renderComm.empty()) renderComm = s.none;
+    if (capCon.empty())     capCon     = s.none;
+    if (capComm.empty())    capComm    = s.none;
 
-    // szTip is 128 wchars (including null terminator).
-    // Truncate device names if the full string would exceed the limit.
     wchar_t tip[128];
-    StringCchPrintfW(tip, _countof(tip),
-        L"播放设备：%s\n播放通信设备：%s\n录制设备：%s\n录制通信设备：%s",
+    StringCchPrintfW(tip, _countof(tip), s.tipFormat,
         renderCon.c_str(), renderComm.c_str(),
         capCon.c_str(), capComm.c_str());
 
@@ -205,7 +204,7 @@ static void AppendDeviceItems(HMENU hMenu, UINT baseId,
                                const std::vector<DevEntry>& devices)
 {
     if (devices.empty()) {
-        AppendMenuW(hMenu, MF_STRING | MF_GRAYED, 0, L"未找到设备");
+        AppendMenuW(hMenu, MF_STRING | MF_GRAYED, 0, GetStrings().noDeviceFound);
         return;
     }
 
@@ -222,35 +221,33 @@ static void ShowContextMenu(HWND hwnd)
 {
     HMENU hMenu = CreatePopupMenu();
 
-    // ---- 播放设备 ----
+    const auto& s = GetStrings();
+
     HMENU hRenderConsole = CreatePopupMenu();
     AppendDeviceItems(hRenderConsole, ID_DEV_RENDER_CONSOLE, eRender, eConsole, g_renderDevices);
-    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hRenderConsole), L"播放设备");
+    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hRenderConsole), s.playbackDevices);
 
-    // ---- 播放通信设备 ----
     HMENU hRenderComms = CreatePopupMenu();
     AppendDeviceItems(hRenderComms, ID_DEV_RENDER_COMMS, eRender, eCommunications, g_renderDevices);
-    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hRenderComms), L"播放通信设备");
+    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hRenderComms), s.playbackCommDevices);
 
-    // ---- 录制设备 ----
     HMENU hCaptureConsole = CreatePopupMenu();
     AppendDeviceItems(hCaptureConsole, ID_DEV_CAPTURE_CONSOLE, eCapture, eConsole, g_captureDevices);
-    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hCaptureConsole), L"录制设备");
+    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hCaptureConsole), s.recordingDevices);
 
-    // ---- 录制通信设备 ----
     HMENU hCaptureComms = CreatePopupMenu();
     AppendDeviceItems(hCaptureComms, ID_DEV_CAPTURE_COMMS, eCapture, eCommunications, g_captureDevices);
-    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hCaptureComms), L"录制通信设备");
+    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hCaptureComms), s.recordingCommDevices);
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hMenu, MF_STRING, ID_REFRESH, L"刷新设备列表");
-    AppendMenuW(hMenu, MF_STRING, ID_OPEN_SOUND_SETTINGS, L"打开声音设置...");
+    AppendMenuW(hMenu, MF_STRING, ID_REFRESH, s.refreshDeviceList);
+    AppendMenuW(hMenu, MF_STRING, ID_OPEN_SOUND_SETTINGS, s.openSoundSettings);
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
 
     UINT startupFlags = MF_STRING | (IsStartupEnabled() ? MF_CHECKED : 0);
-    AppendMenuW(hMenu, startupFlags, ID_STARTUP, L"开机启动");
+    AppendMenuW(hMenu, startupFlags, ID_STARTUP, s.startAtLogin);
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hMenu, MF_STRING, ID_EXIT, L"退出");
+    AppendMenuW(hMenu, MF_STRING, ID_EXIT, s.exit);
 
     POINT pt = {};
     GetCursorPos(&pt);
@@ -304,7 +301,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
 
         if (id == ID_REFRESH) {
-            TrayShowBalloon(hwnd, L"刷新成功", L"设备列表已更新", NIIF_INFO);
+            TrayShowBalloon(hwnd, GetStrings().refreshSuccess, GetStrings().deviceListUpdated, NIIF_INFO);
             return 0;
         }
 
@@ -323,8 +320,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             const std::wstring& devId = devices[idx].id;
             if (SetDefaultDevice(devId, role)) {
                 wchar_t msg2[256];
-                StringCchPrintfW(msg2, 256, L"已切换到: %s", devices[idx].name.c_str());
-                TrayShowBalloon(hwnd, L"切换成功", msg2, NIIF_INFO);
+                StringCchPrintfW(msg2, 256, GetStrings().switchedToFmt, devices[idx].name.c_str());
+                TrayShowBalloon(hwnd, GetStrings().switchSuccess, msg2, NIIF_INFO);
                 UpdateTrayTip();
             }
             return true;
@@ -365,8 +362,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (hMutex) CloseHandle(hMutex);
         MessageBoxW(nullptr,
-                    L"AudioDeviceSwitcher 已经在运行中！\n\n请在系统托盘查找图标。",
-                    L"提示", MB_OK | MB_ICONINFORMATION);
+                    GetStrings().alreadyRunning,
+                    GetStrings().notice, MB_OK | MB_ICONINFORMATION);
         return 0;
     }
 
