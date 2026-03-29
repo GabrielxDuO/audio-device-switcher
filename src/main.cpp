@@ -22,6 +22,7 @@
 #define ID_DEV_CAPTURE_COMMS        0x1300  // eCapture / eCommunications
 #define ID_DEV_MASK                 0xFF00
 
+#define ID_OPEN_SOUND_SETTINGS      0x2000
 #define ID_REFRESH                  0x2001
 #define ID_STARTUP                  0x2002
 #define ID_EXIT                     0x2003
@@ -160,6 +161,7 @@ static void ShowContextMenu(HWND hwnd)
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hMenu, MF_STRING, ID_REFRESH, L"刷新设备列表");
+    AppendMenuW(hMenu, MF_STRING, ID_OPEN_SOUND_SETTINGS, L"打开声音设置...");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
 
     UINT startupFlags = MF_STRING | (IsStartupEnabled() ? MF_CHECKED : 0);
@@ -208,6 +210,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         if (id == ID_EXIT) {
             TrayDestroy(hwnd);
             PostQuitMessage(0);
+            return 0;
+        }
+
+        if (id == ID_OPEN_SOUND_SETTINGS) {
+            ShellExecuteW(nullptr, L"open", L"control.exe", L"mmsys.cpl",
+                          nullptr, SW_SHOWNORMAL);
             return 0;
         }
 
