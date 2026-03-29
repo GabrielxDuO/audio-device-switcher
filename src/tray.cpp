@@ -28,6 +28,15 @@ void TraySetIcon(HWND hwnd, HICON hIcon)
     Shell_NotifyIconW(NIM_MODIFY, &g_nid);
 }
 
+void TraySetTip(HWND hwnd, const wchar_t* tip)
+{
+    g_nid.hWnd   = hwnd;
+    g_nid.uID    = TRAY_UID;
+    g_nid.uFlags = NIF_TIP | NIF_SHOWTIP;
+    if (tip) wcsncpy_s(g_nid.szTip, tip, _TRUNCATE);
+    Shell_NotifyIconW(NIM_MODIFY, &g_nid);
+}
+
 void TrayShowBalloon(HWND hwnd, const wchar_t* title, const wchar_t* text, DWORD infoFlags)
 {
     NOTIFYICONDATAW nid = {};

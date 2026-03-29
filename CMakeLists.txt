@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(AudioDeviceSwitcher
-    VERSION 2.2.0
+    VERSION 2.3.0
     DESCRIPTION "Windows Audio Device Switcher"
     LANGUAGES CXX RC
 )

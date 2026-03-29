@@ -75,6 +75,32 @@ std::wstring GetDefaultDeviceId(EDataFlow flow, ERole role)
     return id;
 }
 
+std::wstring GetDefaultDeviceName(EDataFlow flow, ERole role)
+{
+    ComPtr<IMMDeviceEnumerator> pEnum;
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr,
+                                  CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
+                                  reinterpret_cast<void**>(pEnum.GetAddressOf()));
+    if (FAILED(hr)) return {};
+
+    ComPtr<IMMDevice> pDevice;
+    hr = pEnum->GetDefaultAudioEndpoint(flow, role, pDevice.GetAddressOf());
+    if (FAILED(hr)) return {};
+
+    ComPtr<IPropertyStore> pProps;
+    if (FAILED(pDevice->OpenPropertyStore(STGM_READ, pProps.GetAddressOf()))) return {};
+
+    PROPVARIANT varName;
+    PropVariantInit(&varName);
+    std::wstring name;
+    if (SUCCEEDED(pProps->GetValue(PKEY_Device_FriendlyName, &varName)) &&
+        varName.vt == VT_LPWSTR && varName.pwszVal) {
+        name = varName.pwszVal;
+    }
+    PropVariantClear(&varName);
+    return name;
+}
+
 bool SetDefaultDevice(const std::wstring& deviceId, ERole role)
 {
     ComPtr<IPolicyConfig> pConfig;

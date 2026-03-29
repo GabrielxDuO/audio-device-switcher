@@ -10,5 +10,6 @@
 
 void TrayInit(HWND hwnd, HICON hIcon, const wchar_t* tip);
 void TraySetIcon(HWND hwnd, HICON hIcon);
+void TraySetTip(HWND hwnd, const wchar_t* tip);
 void TrayShowBalloon(HWND hwnd, const wchar_t* title, const wchar_t* text, DWORD infoFlags = NIIF_INFO);
 void TrayDestroy(HWND hwnd);

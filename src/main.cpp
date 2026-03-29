@@ -27,6 +27,8 @@
 #define ID_STARTUP                  0x2002
 #define ID_EXIT                     0x2003
 
+#define WM_AUDIO_DEVICE_CHANGED     (WM_APP + 2)
+
 static constexpr wchar_t kMutexName[]   = L"AudioDeviceSwitcher_SingleInstance";
 static constexpr wchar_t kClassName[]   = L"AudioDeviceSwitcherMsg";
 static constexpr wchar_t kAppTip[]      = L"AudioDeviceSwitcher";
@@ -65,13 +67,63 @@ static void InitDarkModeMenuSupport()
     if (g_flushMenuThemes) g_flushMenuThemes();
 }
 
-// Cached device lists rebuilt each time the menu opens
+// Cached device lists, kept up-to-date by IMMNotificationClient
 struct DevEntry {
     std::wstring id;
     std::wstring name;
 };
 static std::vector<DevEntry> g_renderDevices;
 static std::vector<DevEntry> g_captureDevices;
+
+// Persistent enumerator used for notification registration
+static IMMDeviceEnumerator* g_pEnumerator = nullptr;
+
+// ---------------------------------------------------------------------------
+// IMMNotificationClient – posts WM_AUDIO_DEVICE_CHANGED to the main window
+// so device list refresh always happens on the UI thread.
+// ---------------------------------------------------------------------------
+class DeviceNotificationClient : public IMMNotificationClient {
+    long m_ref = 1;
+public:
+    ULONG STDMETHODCALLTYPE AddRef()  override { return InterlockedIncrement(&m_ref); }
+    ULONG STDMETHODCALLTYPE Release() override {
+        long r = InterlockedDecrement(&m_ref);
+        if (r == 0) delete this;
+        return r;
+    }
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
+        if (riid == __uuidof(IUnknown) || riid == __uuidof(IMMNotificationClient)) {
+            *ppv = static_cast<IMMNotificationClient*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *ppv = nullptr;
+        return E_NOINTERFACE;
+    }
+
+    HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR, DWORD) override {
+        PostMessageW(g_hwnd, WM_AUDIO_DEVICE_CHANGED, 0, 0);
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR) override {
+        PostMessageW(g_hwnd, WM_AUDIO_DEVICE_CHANGED, 0, 0);
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR) override {
+        PostMessageW(g_hwnd, WM_AUDIO_DEVICE_CHANGED, 0, 0);
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow, ERole, LPCWSTR) override {
+        PostMessageW(g_hwnd, WM_AUDIO_DEVICE_CHANGED, 0, 0);
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(LPCWSTR, const PROPERTYKEY) override {
+        PostMessageW(g_hwnd, WM_AUDIO_DEVICE_CHANGED, 0, 0);
+        return S_OK;
+    }
+};
+
+static DeviceNotificationClient* g_pNotifyClient = nullptr;
 
 // ---------------------------------------------------------------------------
 // Dark mode detection
@@ -106,6 +158,46 @@ static void CheckAndUpdateDarkMode()
 }
 
 // ---------------------------------------------------------------------------
+// Tray tooltip – shows current default devices for all four categories
+// ---------------------------------------------------------------------------
+static void UpdateTrayTip()
+{
+    std::wstring renderCon  = GetDefaultDeviceName(eRender,  eConsole);
+    std::wstring renderComm = GetDefaultDeviceName(eRender,  eCommunications);
+    std::wstring capCon     = GetDefaultDeviceName(eCapture, eConsole);
+    std::wstring capComm    = GetDefaultDeviceName(eCapture, eCommunications);
+
+    if (renderCon.empty())  renderCon  = L"无";
+    if (renderComm.empty()) renderComm = L"无";
+    if (capCon.empty())     capCon     = L"无";
+    if (capComm.empty())    capComm    = L"无";
+
+    // szTip is 128 wchars (including null terminator).
+    // Truncate device names if the full string would exceed the limit.
+    wchar_t tip[128];
+    StringCchPrintfW(tip, _countof(tip),
+        L"播放设备：%s\n播放通信设备：%s\n录制设备：%s\n录制通信设备：%s",
+        renderCon.c_str(), renderComm.c_str(),
+        capCon.c_str(), capComm.c_str());
+
+    TraySetTip(g_hwnd, tip);
+}
+
+// ---------------------------------------------------------------------------
+// Device list cache
+// ---------------------------------------------------------------------------
+static void RefreshDeviceLists()
+{
+    auto rawRender  = EnumerateDevices(eRender);
+    auto rawCapture = EnumerateDevices(eCapture);
+
+    g_renderDevices.clear();
+    for (auto& d : rawRender)  g_renderDevices.push_back({ std::move(d.id), std::move(d.name) });
+    g_captureDevices.clear();
+    for (auto& d : rawCapture) g_captureDevices.push_back({ std::move(d.id), std::move(d.name) });
+}
+
+// ---------------------------------------------------------------------------
 // Menu helpers
 // ---------------------------------------------------------------------------
 static void AppendDeviceItems(HMENU hMenu, UINT baseId,
@@ -128,15 +220,6 @@ static void AppendDeviceItems(HMENU hMenu, UINT baseId,
 
 static void ShowContextMenu(HWND hwnd)
 {
-    // Refresh device lists
-    auto rawRender  = EnumerateDevices(eRender);
-    auto rawCapture = EnumerateDevices(eCapture);
-
-    g_renderDevices.clear();
-    for (auto& d : rawRender)  g_renderDevices.push_back({ d.id, d.name });
-    g_captureDevices.clear();
-    for (auto& d : rawCapture) g_captureDevices.push_back({ d.id, d.name });
-
     HMENU hMenu = CreatePopupMenu();
 
     // ---- 播放设备 ----
@@ -191,6 +274,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     // point every tray icon has been destroyed and must be re-added.
     if (msg == g_wmTaskbarCreated) {
         TrayInit(hwnd, g_isDarkMode ? g_hIconDark : g_hIconLight, kAppTip);
+        UpdateTrayTip();
         return 0;
     }
 
@@ -241,6 +325,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 wchar_t msg2[256];
                 StringCchPrintfW(msg2, 256, L"已切换到: %s", devices[idx].name.c_str());
                 TrayShowBalloon(hwnd, L"切换成功", msg2, NIIF_INFO);
+                UpdateTrayTip();
             }
             return true;
         };
@@ -251,6 +336,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
              handleDevice(ID_DEV_CAPTURE_COMMS,   eCapture, eCommunications, g_captureDevices);
         return 0;
     }
+
+    case WM_AUDIO_DEVICE_CHANGED:
+        RefreshDeviceLists();
+        UpdateTrayTip();
+        return 0;
 
     case WM_SETTINGCHANGE:
         if (lParam && lstrcmpiW(reinterpret_cast<LPCWSTR>(lParam), L"ImmersiveColorSet") == 0)
@@ -315,7 +405,21 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
                               0, 0, 0, 0,
                               nullptr, nullptr, hInstance, nullptr);
 
+    // Create persistent enumerator and register for device-change notifications.
+    // This keeps g_renderDevices / g_captureDevices up-to-date in the background
+    // so the context menu opens instantly without re-enumerating.
+    CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
+                     __uuidof(IMMDeviceEnumerator),
+                     reinterpret_cast<void**>(&g_pEnumerator));
+    if (g_pEnumerator) {
+        g_pNotifyClient = new DeviceNotificationClient();
+        g_pEnumerator->RegisterEndpointNotificationCallback(g_pNotifyClient);
+    }
+
+    RefreshDeviceLists();
+
     TrayInit(g_hwnd, g_isDarkMode ? g_hIconDark : g_hIconLight, kAppTip);
+    UpdateTrayTip();
 
     // Watch the Personalize registry key so the tray icon updates reliably
     // when the user switches light / dark mode.  WM_SETTINGCHANGE is kept as
@@ -357,6 +461,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
             DispatchMessageW(&msg);
         }
     }
+
+    if (g_pEnumerator && g_pNotifyClient)
+        g_pEnumerator->UnregisterEndpointNotificationCallback(g_pNotifyClient);
+    if (g_pNotifyClient) { g_pNotifyClient->Release(); g_pNotifyClient = nullptr; }
+    if (g_pEnumerator)   { g_pEnumerator->Release();   g_pEnumerator   = nullptr; }
 
     if (hThemeKey)   RegCloseKey(hThemeKey);
     if (hThemeEvent) CloseHandle(hThemeEvent);
