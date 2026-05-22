@@ -248,6 +248,25 @@ static void ApplyAudioSnapshot(AudioSnapshot& snapshot)
     g_captureCommsDefaultName = std::move(snapshot.captureCommsDefaultName);
 }
 
+static void UpdateDefaultCache(EDataFlow flow, ERole role,
+                               const std::wstring& devId,
+                               const std::wstring& name)
+{
+    if (flow == eRender && role == eConsole) {
+        g_renderConsoleDefaultId = devId;
+        g_renderConsoleDefaultName = name;
+    } else if (flow == eRender && role == eCommunications) {
+        g_renderCommsDefaultId = devId;
+        g_renderCommsDefaultName = name;
+    } else if (flow == eCapture && role == eConsole) {
+        g_captureConsoleDefaultId = devId;
+        g_captureConsoleDefaultName = name;
+    } else if (flow == eCapture && role == eCommunications) {
+        g_captureCommsDefaultId = devId;
+        g_captureCommsDefaultName = name;
+    }
+}
+
 static void RefreshDeviceLists()
 {
     AudioSnapshot snapshot = CollectAudioSnapshot();
@@ -393,20 +412,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             UINT idx = id - base;
             if (idx >= devices.size()) return false;
             const std::wstring& devId = devices[idx].id;
-            if (SetDefaultDevice(devId, role)) {
-                if (flow == eRender && role == eConsole) {
-                    g_renderConsoleDefaultId = devId;
-                    g_renderConsoleDefaultName = devices[idx].name;
-                } else if (flow == eRender && role == eCommunications) {
-                    g_renderCommsDefaultId = devId;
-                    g_renderCommsDefaultName = devices[idx].name;
-                } else if (flow == eCapture && role == eConsole) {
-                    g_captureConsoleDefaultId = devId;
-                    g_captureConsoleDefaultName = devices[idx].name;
-                } else if (flow == eCapture && role == eCommunications) {
-                    g_captureCommsDefaultId = devId;
-                    g_captureCommsDefaultName = devices[idx].name;
+            bool switched = SetDefaultDevice(devId, role);
+            if (switched) UpdateDefaultCache(flow, role, devId, devices[idx].name);
+
+            if ((GetKeyState(VK_CONTROL) & 0x8000) != 0) {
+                ERole pairedRole = role == eCommunications ? eConsole : eCommunications;
+                if (SetDefaultDevice(devId, pairedRole)) {
+                    switched = true;
+                    UpdateDefaultCache(flow, pairedRole, devId, devices[idx].name);
                 }
+            }
+
+            if (switched) {
                 wchar_t msg2[256];
                 StringCchPrintfW(msg2, 256, GetStrings().switchedToFmt, devices[idx].name.c_str());
                 TrayShowBalloon(hwnd, GetStrings().switchSuccess, msg2, NIIF_INFO);
