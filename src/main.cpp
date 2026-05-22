@@ -7,6 +7,8 @@
 #include <mmdeviceapi.h>
 #include <strsafe.h>
 
+#include <thread>
+
 #include "../res/resource.h"
 #include "tray.h"
 #include "audio.h"
@@ -29,6 +31,7 @@
 #define ID_EXIT                     0x2003
 
 #define WM_AUDIO_DEVICE_CHANGED     (WM_APP + 2)
+#define WM_AUDIO_REFRESH_COMPLETE   (WM_APP + 3)
 
 static constexpr wchar_t kMutexName[]   = L"AudioDeviceSwitcher_SingleInstance";
 static constexpr wchar_t kClassName[]   = L"AudioDeviceSwitcherMsg";
@@ -75,13 +78,24 @@ struct DevEntry {
 };
 static std::vector<DevEntry> g_renderDevices;
 static std::vector<DevEntry> g_captureDevices;
+static std::wstring g_renderConsoleDefaultId;
+static std::wstring g_renderCommsDefaultId;
+static std::wstring g_captureConsoleDefaultId;
+static std::wstring g_captureCommsDefaultId;
+static std::wstring g_renderConsoleDefaultName;
+static std::wstring g_renderCommsDefaultName;
+static std::wstring g_captureConsoleDefaultName;
+static std::wstring g_captureCommsDefaultName;
+static bool g_refreshInProgress = false;
+static bool g_refreshAgain = false;
+static bool g_showRefreshBalloonAfterRefresh = false;
 
 // Persistent enumerator used for notification registration
 static IMMDeviceEnumerator* g_pEnumerator = nullptr;
 
 // ---------------------------------------------------------------------------
-// IMMNotificationClient – posts WM_AUDIO_DEVICE_CHANGED to the main window
-// so device list refresh always happens on the UI thread.
+// IMMNotificationClient – posts WM_AUDIO_DEVICE_CHANGED to the main window,
+// which schedules slow CoreAudio refresh work outside the UI thread.
 // ---------------------------------------------------------------------------
 class DeviceNotificationClient : public IMMNotificationClient {
     long m_ref = 1;
@@ -163,10 +177,10 @@ static void CheckAndUpdateDarkMode()
 // ---------------------------------------------------------------------------
 static void UpdateTrayTip()
 {
-    std::wstring renderCon  = GetDefaultDeviceName(eRender,  eConsole);
-    std::wstring renderComm = GetDefaultDeviceName(eRender,  eCommunications);
-    std::wstring capCon     = GetDefaultDeviceName(eCapture, eConsole);
-    std::wstring capComm    = GetDefaultDeviceName(eCapture, eCommunications);
+    std::wstring renderCon  = g_renderConsoleDefaultName;
+    std::wstring renderComm = g_renderCommsDefaultName;
+    std::wstring capCon     = g_captureConsoleDefaultName;
+    std::wstring capComm    = g_captureCommsDefaultName;
 
     const auto& s = GetStrings();
     if (renderCon.empty())  renderCon  = s.none;
@@ -185,30 +199,91 @@ static void UpdateTrayTip()
 // ---------------------------------------------------------------------------
 // Device list cache
 // ---------------------------------------------------------------------------
-static void RefreshDeviceLists()
+struct AudioSnapshot {
+    std::vector<DevEntry> renderDevices;
+    std::vector<DevEntry> captureDevices;
+    std::wstring renderConsoleDefaultId;
+    std::wstring renderCommsDefaultId;
+    std::wstring captureConsoleDefaultId;
+    std::wstring captureCommsDefaultId;
+    std::wstring renderConsoleDefaultName;
+    std::wstring renderCommsDefaultName;
+    std::wstring captureConsoleDefaultName;
+    std::wstring captureCommsDefaultName;
+};
+
+static AudioSnapshot CollectAudioSnapshot()
 {
+    AudioSnapshot snapshot;
+
     auto rawRender  = EnumerateDevices(eRender);
     auto rawCapture = EnumerateDevices(eCapture);
 
-    g_renderDevices.clear();
-    for (auto& d : rawRender)  g_renderDevices.push_back({ std::move(d.id), std::move(d.name) });
-    g_captureDevices.clear();
-    for (auto& d : rawCapture) g_captureDevices.push_back({ std::move(d.id), std::move(d.name) });
+    for (auto& d : rawRender)  snapshot.renderDevices.push_back({ std::move(d.id), std::move(d.name) });
+    for (auto& d : rawCapture) snapshot.captureDevices.push_back({ std::move(d.id), std::move(d.name) });
+
+    snapshot.renderConsoleDefaultId  = GetDefaultDeviceId(eRender,  eConsole);
+    snapshot.renderCommsDefaultId    = GetDefaultDeviceId(eRender,  eCommunications);
+    snapshot.captureConsoleDefaultId = GetDefaultDeviceId(eCapture, eConsole);
+    snapshot.captureCommsDefaultId   = GetDefaultDeviceId(eCapture, eCommunications);
+    snapshot.renderConsoleDefaultName  = GetDefaultDeviceName(eRender,  eConsole);
+    snapshot.renderCommsDefaultName    = GetDefaultDeviceName(eRender,  eCommunications);
+    snapshot.captureConsoleDefaultName = GetDefaultDeviceName(eCapture, eConsole);
+    snapshot.captureCommsDefaultName   = GetDefaultDeviceName(eCapture, eCommunications);
+
+    return snapshot;
+}
+
+static void ApplyAudioSnapshot(AudioSnapshot& snapshot)
+{
+    g_renderDevices = std::move(snapshot.renderDevices);
+    g_captureDevices = std::move(snapshot.captureDevices);
+    g_renderConsoleDefaultId = std::move(snapshot.renderConsoleDefaultId);
+    g_renderCommsDefaultId = std::move(snapshot.renderCommsDefaultId);
+    g_captureConsoleDefaultId = std::move(snapshot.captureConsoleDefaultId);
+    g_captureCommsDefaultId = std::move(snapshot.captureCommsDefaultId);
+    g_renderConsoleDefaultName = std::move(snapshot.renderConsoleDefaultName);
+    g_renderCommsDefaultName = std::move(snapshot.renderCommsDefaultName);
+    g_captureConsoleDefaultName = std::move(snapshot.captureConsoleDefaultName);
+    g_captureCommsDefaultName = std::move(snapshot.captureCommsDefaultName);
+}
+
+static void RefreshDeviceLists()
+{
+    AudioSnapshot snapshot = CollectAudioSnapshot();
+    ApplyAudioSnapshot(snapshot);
+}
+
+static void RequestDeviceRefresh(bool showBalloon)
+{
+    if (showBalloon) g_showRefreshBalloonAfterRefresh = true;
+
+    if (g_refreshInProgress) {
+        g_refreshAgain = true;
+        return;
+    }
+
+    g_refreshInProgress = true;
+    std::thread([] {
+        HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+        AudioSnapshot* snapshot = new AudioSnapshot(CollectAudioSnapshot());
+        if (SUCCEEDED(hr)) CoUninitialize();
+        PostMessageW(g_hwnd, WM_AUDIO_REFRESH_COMPLETE, 0,
+                     reinterpret_cast<LPARAM>(snapshot));
+    }).detach();
 }
 
 // ---------------------------------------------------------------------------
 // Menu helpers
 // ---------------------------------------------------------------------------
 static void AppendDeviceItems(HMENU hMenu, UINT baseId,
-                               EDataFlow flow, ERole role,
+                               const std::wstring& defaultId,
                                const std::vector<DevEntry>& devices)
 {
     if (devices.empty()) {
         AppendMenuW(hMenu, MF_STRING | MF_GRAYED, 0, GetStrings().noDeviceFound);
         return;
     }
-
-    std::wstring defaultId = GetDefaultDeviceId(flow, role);
 
     for (UINT i = 0; i < static_cast<UINT>(devices.size()); ++i) {
         UINT flags = MF_STRING;
@@ -224,19 +299,19 @@ static void ShowContextMenu(HWND hwnd)
     const auto& s = GetStrings();
 
     HMENU hRenderConsole = CreatePopupMenu();
-    AppendDeviceItems(hRenderConsole, ID_DEV_RENDER_CONSOLE, eRender, eConsole, g_renderDevices);
+    AppendDeviceItems(hRenderConsole, ID_DEV_RENDER_CONSOLE, g_renderConsoleDefaultId, g_renderDevices);
     AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hRenderConsole), s.playbackDevices);
 
     HMENU hRenderComms = CreatePopupMenu();
-    AppendDeviceItems(hRenderComms, ID_DEV_RENDER_COMMS, eRender, eCommunications, g_renderDevices);
+    AppendDeviceItems(hRenderComms, ID_DEV_RENDER_COMMS, g_renderCommsDefaultId, g_renderDevices);
     AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hRenderComms), s.playbackCommDevices);
 
     HMENU hCaptureConsole = CreatePopupMenu();
-    AppendDeviceItems(hCaptureConsole, ID_DEV_CAPTURE_CONSOLE, eCapture, eConsole, g_captureDevices);
+    AppendDeviceItems(hCaptureConsole, ID_DEV_CAPTURE_CONSOLE, g_captureConsoleDefaultId, g_captureDevices);
     AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hCaptureConsole), s.recordingDevices);
 
     HMENU hCaptureComms = CreatePopupMenu();
-    AppendDeviceItems(hCaptureComms, ID_DEV_CAPTURE_COMMS, eCapture, eCommunications, g_captureDevices);
+    AppendDeviceItems(hCaptureComms, ID_DEV_CAPTURE_COMMS, g_captureCommsDefaultId, g_captureDevices);
     AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hCaptureComms), s.recordingCommDevices);
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
@@ -301,7 +376,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
 
         if (id == ID_REFRESH) {
-            TrayShowBalloon(hwnd, GetStrings().refreshSuccess, GetStrings().deviceListUpdated, NIIF_INFO);
+            RequestDeviceRefresh(true);
             return 0;
         }
 
@@ -319,10 +394,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (idx >= devices.size()) return false;
             const std::wstring& devId = devices[idx].id;
             if (SetDefaultDevice(devId, role)) {
+                if (flow == eRender && role == eConsole) {
+                    g_renderConsoleDefaultId = devId;
+                    g_renderConsoleDefaultName = devices[idx].name;
+                } else if (flow == eRender && role == eCommunications) {
+                    g_renderCommsDefaultId = devId;
+                    g_renderCommsDefaultName = devices[idx].name;
+                } else if (flow == eCapture && role == eConsole) {
+                    g_captureConsoleDefaultId = devId;
+                    g_captureConsoleDefaultName = devices[idx].name;
+                } else if (flow == eCapture && role == eCommunications) {
+                    g_captureCommsDefaultId = devId;
+                    g_captureCommsDefaultName = devices[idx].name;
+                }
                 wchar_t msg2[256];
                 StringCchPrintfW(msg2, 256, GetStrings().switchedToFmt, devices[idx].name.c_str());
                 TrayShowBalloon(hwnd, GetStrings().switchSuccess, msg2, NIIF_INFO);
                 UpdateTrayTip();
+                RequestDeviceRefresh(false);
             }
             return true;
         };
@@ -335,9 +424,29 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     }
 
     case WM_AUDIO_DEVICE_CHANGED:
-        RefreshDeviceLists();
-        UpdateTrayTip();
+        RequestDeviceRefresh(false);
         return 0;
+
+    case WM_AUDIO_REFRESH_COMPLETE: {
+        AudioSnapshot* snapshot = reinterpret_cast<AudioSnapshot*>(lParam);
+        if (snapshot) {
+            ApplyAudioSnapshot(*snapshot);
+            delete snapshot;
+        }
+
+        UpdateTrayTip();
+        if (g_showRefreshBalloonAfterRefresh) {
+            TrayShowBalloon(hwnd, GetStrings().refreshSuccess, GetStrings().deviceListUpdated, NIIF_INFO);
+            g_showRefreshBalloonAfterRefresh = false;
+        }
+
+        g_refreshInProgress = false;
+        if (g_refreshAgain) {
+            g_refreshAgain = false;
+            RequestDeviceRefresh(false);
+        }
+        return 0;
+    }
 
     case WM_SETTINGCHANGE:
         if (lParam && lstrcmpiW(reinterpret_cast<LPCWSTR>(lParam), L"ImmersiveColorSet") == 0)
