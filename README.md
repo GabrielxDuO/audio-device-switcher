@@ -2,7 +2,7 @@
 
 Windows 音频设备快速切换工具
 
-[![Version](https://img.shields.io/badge/version-2.4.0-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue)](https://github.com/GabrielxDuO/audio-device-switcher/releases)
 [![Build](https://github.com/GabrielxDuO/audio-device-switcher/workflows/Build/badge.svg)](https://github.com/GabrielxDuO/audio-device-switcher/actions)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](https://github.com/GabrielxDuO/audio-device-switcher)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -10,6 +10,7 @@ Windows 音频设备快速切换工具
 ## 特性
 
 - 快速切换 播放设备 / 播放通信设备 / 录制设备 / 录制通信设备
+- 按住 Ctrl 选择设备时，可同时切换同类默认设备与通信设备
 - 悬停托盘图标即可查看当前四类默认设备名称
 - 设备插拔 / 默认设备变更时自动刷新，菜单打开零延迟
 - 一键打开系统声音设置面板
@@ -31,6 +32,8 @@ Windows 音频设备快速切换工具
 
 - **左键 / 右键点击托盘图标**：打开菜单
 - **选择设备**：立即切换
+- **按住 Ctrl 选择播放设备或播放通信设备**：同时切换播放设备与播放通信设备
+- **按住 Ctrl 选择录制设备或录制通信设备**：同时切换录制设备与录制通信设备
 - **打开声音设置**：快速跳转系统声音控制面板
 - **开机启动**：勾选菜单中的选项
 - **退出**：点击菜单中的退出
